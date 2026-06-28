@@ -163,6 +163,8 @@
   .bxrow.won .nm{color:var(--gold)}
   .bxrow.won::after{content:"✓";margin-left:auto;color:var(--gold);font-size:11px;font-weight:700;flex-shrink:0}
   .bx .sc{font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);text-align:center;padding:3px 4px;border-top:1px solid var(--line);background:rgba(255,255,255,.025)}
+  .bx .sched{font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.03em;color:var(--faint);text-align:center;padding:5px 6px 4px;border-top:1px solid var(--line);line-height:1.55}
+  .bx .sched .sv{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
   .bxrow .fl{font-size:16px;line-height:1;flex-shrink:0}
   .bxrow .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
   .bxrow.ph{cursor:default}
@@ -340,6 +342,39 @@ const ROUNDS=[
  {key:"SF",label:"Semi-finals",ids:[101,102]},
  {key:"F",label:"Final",ids:[104]},
 ];
+const SCHEDULE={
+ 74:{d:"Jun 28",t:"12:00",v:"MetLife Stadium, NJ"},
+ 77:{d:"Jun 28",t:"15:00",v:"AT&T Stadium, Dallas"},
+ 73:{d:"Jun 28",t:"18:00",v:"BC Place, Vancouver"},
+ 86:{d:"Jun 28",t:"21:00",v:"Hard Rock Stadium, Miami"},
+ 75:{d:"Jun 29",t:"12:00",v:"SoFi Stadium, LA"},
+ 83:{d:"Jun 29",t:"15:00",v:"Lincoln Financial Field, Philadelphia"},
+ 76:{d:"Jun 29",t:"18:00",v:"NRG Stadium, Houston"},
+ 84:{d:"Jun 29",t:"21:00",v:"Levi's Stadium, SF Bay Area"},
+ 81:{d:"Jun 30",t:"12:00",v:"Mercedes-Benz Stadium, Atlanta"},
+ 82:{d:"Jun 30",t:"15:00",v:"Lumen Field, Seattle"},
+ 79:{d:"Jun 30",t:"18:00",v:"Estadio Azteca, Mexico City"},
+ 80:{d:"Jun 30",t:"21:00",v:"Guadalajara Stadium, Guadalajara"},
+ 78:{d:"Jul 1",t:"12:00",v:"BMO Field, Toronto"},
+ 85:{d:"Jul 1",t:"15:00",v:"AT&T Stadium, Dallas"},
+ 87:{d:"Jul 1",t:"18:00",v:"NRG Stadium, Houston"},
+ 88:{d:"Jul 1",t:"21:00",v:"Hard Rock Stadium, Miami"},
+ 89:{d:"Jul 4",t:"16:00",v:"MetLife Stadium, NJ"},
+ 90:{d:"Jul 4",t:"20:00",v:"SoFi Stadium, LA"},
+ 91:{d:"Jul 5",t:"16:00",v:"Hard Rock Stadium, Miami"},
+ 92:{d:"Jul 5",t:"20:00",v:"AT&T Stadium, Dallas"},
+ 93:{d:"Jul 6",t:"16:00",v:"Lincoln Financial Field, Philadelphia"},
+ 94:{d:"Jul 6",t:"20:00",v:"Mercedes-Benz Stadium, Atlanta"},
+ 95:{d:"Jul 7",t:"16:00",v:"Levi's Stadium, SF Bay Area"},
+ 96:{d:"Jul 7",t:"20:00",v:"NRG Stadium, Houston"},
+ 97:{d:"Jul 9",t:"16:00",v:"MetLife Stadium, NJ"},
+ 98:{d:"Jul 9",t:"20:00",v:"SoFi Stadium, LA"},
+ 99:{d:"Jul 10",t:"16:00",v:"Hard Rock Stadium, Miami"},
+ 100:{d:"Jul 10",t:"20:00",v:"AT&T Stadium, Dallas"},
+ 101:{d:"Jul 14",t:"20:00",v:"MetLife Stadium, NJ"},
+ 102:{d:"Jul 15",t:"20:00",v:"AT&T Stadium, Dallas"},
+ 104:{d:"Jul 19",t:"16:00",v:"MetLife Stadium, NJ"},
+};
 // where each team starts
 const START={};R32.forEach(m=>{START[m.t]={m:m.id,s:0};START[m.b]={m:m.id,s:1};});
 function pathOf(name){const st=START[name];if(!st)return[];const p=[{m:st.m,s:st.s}];let c=st.m;
@@ -396,7 +431,9 @@ async function fetchResults(){
   setStatus('Checking for results…','load');
   try{
     const t=todayStr();
-    const dates=KO_DATES.filter(d=>d<=t);
+    const pastDates=KO_DATES.filter(d=>d<=t);
+    const futureDates=KO_DATES.filter(d=>d>t).slice(0,6);
+    const dates=[...pastDates,...futureDates];
     if(!dates.length){setStatus('Knockouts begin Jun 28','');return;}
     const base="https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=";
     const datas=await Promise.all(dates.map(d=>fetch(base+d).then(r=>r.ok?r.json():null).catch(()=>null)));
@@ -409,6 +446,20 @@ async function fetchResults(){
       let sc=(W.score!=null?W.score:'')+'–'+(L.score!=null?L.score:'');
       if(W.shootoutScore!=null&&L.shootoutScore!=null)sc+=' ('+W.shootoutScore+'–'+L.shootoutScore+' pens)';
       finished.push({winner:espnName(W),loser:espnName(L),score:sc});
+    });});
+    datas.forEach(j=>{(j&&j.events||[]).forEach(ev=>{
+      const c=ev.competitions&&ev.competitions[0];if(!c)return;
+      const cs=c.competitors||[];if(cs.length!==2)return;
+      const n1=canon(espnName(cs[0])),n2=canon(espnName(cs[1]));if(!n1||!n2)return;
+      const rm=R32.find(x=>(x.t===n1&&x.b===n2)||(x.t===n2&&x.b===n1));
+      if(rm&&(ev.date||c.startDate)){
+        const dt=new Date(ev.date||c.startDate),vn=c.venue;
+        SCHEDULE[rm.id]={
+          d:dt.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'America/New_York'}),
+          t:dt.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'America/New_York'}),
+          v:vn?(vn.fullName||'')+(vn.address&&vn.address.city?', '+vn.address.city:''):'TBD'
+        };
+      }
     });});
     RESULTS=resolveResults([...SEED,...finished]);renderBracket();updateChamp();
     const n=Object.keys(RESULTS).length;
@@ -446,6 +497,11 @@ function matchBox(mid,roundKey){
       const w=winnerOf(CHILD[mid][s]);
       bx.appendChild(w?teamRow(w,'in'):tbdRow());
     });
+  }
+  if(!RESULTS[mid]&&SCHEDULE[mid]){
+    const sch=SCHEDULE[mid],sd=document.createElement('div');sd.className='sched';
+    sd.innerHTML=sch.d+' · '+sch.t+' ET<span class="sv">'+esc(sch.v)+'</span>';
+    bx.appendChild(sd);
   }
   return bx;
 }
