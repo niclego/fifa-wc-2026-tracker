@@ -233,7 +233,7 @@
 
 <footer>
   <div class="wrap">
-    <p class="note"><b>Source.</b> Every roster, club, position, birth date, height, cap and goal figure is taken verbatim from the official FIFA squad lists released 24 June 2026; ages are as of the tournament. Players are listed alphabetically by surname; the number is the shirt number. The coloured tags flag each squad's <b>most-capped player</b>, <b>top scorer</b> and <b>youngest player</b>. Squad facts (average age, players based abroad, etc.) are computed from that same data.</p>
+    <p class="note"><b>Source.</b> Every roster, club, position, birth date, height, cap and goal figure is taken verbatim from the official FIFA squad lists released 24 June 2026; ages are as of the tournament. Players are grouped by position (GK → DF → MF → FW) and sorted by shirt number within each position. The coloured tags flag each squad's <b>most-capped player</b>, <b>top scorer</b> and <b>youngest player</b>. Squad facts (average age, players based abroad, etc.) are computed from that same data.</p>
     <div class="pending"><b>Round of 32 — June 28 to July 3.</b> The 32-team bracket is complete: 12 group winners, 12 runners-up and the eight best third-placed teams. It's a fixed bracket with no redraws — every nation already knows its full path to the final. Opening ties include South Africa–Canada, Brazil–Japan, Netherlands–Morocco, Spain–Austria, Portugal–Croatia and Argentina–Cabo Verde.</div>
     <p style="margin-top:16px"><a class="top" href="#">↑ Back to top</a></p>
   </div>
@@ -282,8 +282,10 @@ function render(){
   countEl.textContent=vT+' team'+(vT!==1?'s':'')+' · '+vP+' players';
 }
 
+const POS_ORDER={GK:0,DF:1,MF:2,FW:3};
 function card(t,players,col,q,forceOpen){
   const el=document.createElement('div');el.className='team'+((allExpanded||forceOpen)?'':' collapsed');el.dataset.team=t.name;
+  players=[...players].sort((a,b)=>(POS_ORDER[a.pos]??9)-(POS_ORDER[b.pos]??9)||a.num-b.num);
   const rows=players.map(p=>{
     const tags=(p.tags||[]).map(tg=>'<span class="tag '+tg+'">'+(tg==='caps'?'Caps':tg==='scorer'?'Top scorer':'Youngest')+'</span>').join('');
     return '<div class="prow">'+
