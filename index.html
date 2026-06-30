@@ -199,6 +199,12 @@
   .bx .sc{font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);text-align:center;padding:3px 4px;border-top:1px solid var(--line);background:rgba(255,255,255,.025)}
   .bx .sched{font-family:"JetBrains Mono",monospace;font-size:8px;letter-spacing:.03em;color:var(--faint);text-align:center;padding:5px 6px 4px;border-top:1px solid var(--line);line-height:1.55}
   .bx .sched .sv{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
+  .bx.islive{border-color:#e2585f88;box-shadow:0 0 0 1px #e2585f33,0 10px 26px -20px rgba(226,88,95,.6)}
+  .bx .sc.live{color:#FF8A8F;background:rgba(226,88,95,.1);border-top-color:#e2585f44;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px}
+  .bxrow .bxscore{margin-left:auto;font-family:"JetBrains Mono",monospace;font-size:14px;font-weight:700;color:var(--ink);flex-shrink:0;font-variant-numeric:tabular-nums}
+  .bx.islive .bxrow .bxscore{color:#FFB4B7}
+  .livedot{width:6px;height:6px;border-radius:50%;background:#FF6B72;box-shadow:0 0 0 3px rgba(226,88,95,.25);animation:pulse 1.4s infinite;flex-shrink:0}
+  .bkstat.live{color:#FF8A8F;border-color:#e2585f66;background:rgba(226,88,95,.1)}
   .bxrow .fl{font-size:16px;line-height:1;flex-shrink:0}
   .bxrow .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
   .bxrow.ph{cursor:default}
@@ -609,6 +615,9 @@ function resolveResults(finished){
 }
 
 let RESULTS=resolveResults(SEED);
+// In-progress matches, keyed by an order-independent pair of canonical team names.
+let LIVE={};
+const pairKey=(a,b)=>[canon(a)||a,canon(b)||b].sort().join('|');
 const winnerOf=id=>(RESULTS[id]?RESULTS[id].w:null);
 function updateChamp(){const f=RESULTS[104];document.getElementById('champName').textContent=f?f.w:'TBD';}
 function setStatus(t,cls){const e=document.getElementById('bkStatus');if(e){e.textContent=t;e.className='bkstat'+(cls?' '+cls:'');}}
@@ -654,9 +663,20 @@ async function fetchResults(){
         };
       }
     });});
+    const live={};
+    datas.forEach(j=>{(j&&j.events||[]).forEach(ev=>{
+      const c=ev.competitions&&ev.competitions[0];if(!c)return;
+      const st=c.status&&c.status.type;if(!st||st.state!=="in")return;
+      const cs=c.competitors||[];if(cs.length!==2)return;
+      const n1=canon(espnName(cs[0])),n2=canon(espnName(cs[1]));if(!n1||!n2)return;
+      const scores={};scores[n1]=cs[0].score!=null?cs[0].score:'';scores[n2]=cs[1].score!=null?cs[1].score:'';
+      live[pairKey(n1,n2)]={scores,detail:st.shortDetail||st.detail||st.description||'In progress'};
+    });});
+    LIVE=live;
     RESULTS=resolveResults([...SEED,...finished]);renderBracket();updateChamp();
-    const n=Object.keys(RESULTS).length;
-    setStatus('Live · '+n+' result'+(n!==1?'s':'')+' in · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'ok');
+    const n=Object.keys(RESULTS).length,nl=Object.keys(LIVE).length;
+    if(nl){setStatus(nl+' match'+(nl!==1?'es':'')+' live now · updated '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'live');}
+    else{setStatus('Live · '+n+' result'+(n!==1?'s':'')+' in · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}),'ok');}
   }catch(e){
     setStatus('Showing last saved results (live unavailable)','warn');
   }
@@ -665,11 +685,12 @@ const fl=n=>(TMAP[n]?TMAP[n].flag:"");
 const shn=n=>SHORT[n]||n;
 const bk=document.getElementById('bracket');
 
-function teamRow(name,status){
+function teamRow(name,status,score){
   const conf=TMAP[name]?TMAP[name].conf:"UEFA";const col=CONFCOLOR[conf]||"#4A90D9";
   const d=document.createElement('div');d.className='bxrow'+(status==='out'?' out':'')+(status==='won'?' won':'');
   d.style.borderLeftColor=col;
-  d.innerHTML='<span class="fl">'+fl(name)+'</span><span class="nm">'+esc(shn(name))+'</span>';
+  const scoreHtml=(score!=null&&score!=='')?'<span class="bxscore">'+esc(String(score))+'</span>':'';
+  d.innerHTML='<span class="fl">'+fl(name)+'</span><span class="nm">'+esc(shn(name))+'</span>'+scoreHtml;
   d.onclick=()=>openSquad(name);
   return d;
 }
@@ -682,20 +703,18 @@ const CMPICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 function matchBox(mid,roundKey){
   const bx=document.createElement('div');bx.className='bx';
   let nameA=null,nameB=null;
-  if(roundKey==="R32"){
-    const m=R32MAP[mid],r=RESULTS[mid];
-    nameA=m.t;nameB=m.b;
-    bx.appendChild(teamRow(m.t,r?(r.w===m.t?'won':'out'):null));
-    bx.appendChild(teamRow(m.b,r?(r.w===m.b?'won':'out'):null));
-    if(r){const sc=document.createElement('div');sc.className='sc';sc.textContent='Full-time · '+r.sc;bx.appendChild(sc);}
-  }else{
-    [0,1].forEach(s=>{
-      const w=winnerOf(CHILD[mid][s]);
-      if(s===0)nameA=w;else nameB=w;
-      bx.appendChild(w?teamRow(w,'in'):tbdRow());
-    });
-  }
-  if(!RESULTS[mid]&&SCHEDULE[mid]){
+  if(roundKey==="R32"){nameA=R32MAP[mid].t;nameB=R32MAP[mid].b;}
+  else{nameA=winnerOf(CHILD[mid][0]);nameB=winnerOf(CHILD[mid][1]);}
+  const r=RESULTS[mid];
+  const live=(!r&&nameA&&nameB)?LIVE[pairKey(nameA,nameB)]:null;
+  if(live)bx.classList.add('islive');
+  const statusOf=name=>r?(r.w===name?'won':'out'):(roundKey==="R32"?null:'in');
+  bx.appendChild(nameA?teamRow(nameA,statusOf(nameA),live?live.scores[nameA]:null):tbdRow());
+  bx.appendChild(nameB?teamRow(nameB,statusOf(nameB),live?live.scores[nameB]:null):tbdRow());
+  if(r){const sc=document.createElement('div');sc.className='sc';sc.textContent='Full-time · '+r.sc;bx.appendChild(sc);}
+  else if(live){const sc=document.createElement('div');sc.className='sc live';
+    sc.innerHTML='<span class="livedot"></span>LIVE · '+esc(live.detail);bx.appendChild(sc);}
+  else if(SCHEDULE[mid]){
     const sch=SCHEDULE[mid],sd=document.createElement('div');sd.className='sched';
     sd.innerHTML=sch.d+' · '+sch.t+' ET<span class="sv">'+esc(sch.v)+'</span>';
     bx.appendChild(sd);
@@ -827,7 +846,18 @@ function setView(v){tabBracket.classList.toggle('on',v==="bracket");tabSquads.cl
   bracketWrap.style.display=v==="bracket"?"":"none";squadsWrap.style.display=v==="squads"?"":"none";
   window.scrollTo({top:0,behavior:'auto'});}
 tabBracket.onclick=()=>setView("bracket");tabSquads.onclick=()=>setView("squads");
-renderBracket();updateChamp();fetchResults();
+renderBracket();updateChamp();
+// Poll the live feed: every 30s while a match is in progress, every 2 min otherwise.
+let pollTimer=null;
+function scheduleNextPoll(){
+  clearTimeout(pollTimer);
+  const next=Object.keys(LIVE).length?30000:120000;
+  pollTimer=setTimeout(poll,next);
+}
+async function poll(){await fetchResults();scheduleNextPoll();}
+poll();
+// Refresh promptly when the tab regains focus so scores aren't stale.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll();});
 </script>
 </body>
 </html>
