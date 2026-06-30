@@ -118,6 +118,12 @@
   .pmain{flex:1;min-width:0}
   .pname{font-weight:600;font-size:14px;line-height:1.15;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .pname mark{background:rgba(230,178,58,.32);color:#fff;border-radius:2px;padding:0 1px}
+  /* subtle "open in Google" link on player & team names */
+  .gl{color:inherit;text-decoration:none;cursor:pointer;transition:color .15s}
+  .gl:hover{color:var(--gold)}
+  .gl .ext{display:inline-block;font-size:.72em;line-height:0;margin-left:3px;opacity:0;color:var(--gold);transform:translateY(-1px);transition:opacity .15s}
+  .gl:hover .ext,.tn h3 .gl:focus-visible .ext{opacity:.95}
+  @media(hover:none){.gl .ext{opacity:.45}}
   .tag{font-family:"JetBrains Mono",monospace;font-size:8px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:4px;flex-shrink:0}
   .tag.caps{background:#4a90d926;color:#7FB4EA;border:1px solid #4a90d944}
   .tag.scorer{background:#e6b23a26;color:#E6B23A;border:1px solid #E6B23A55}
@@ -368,6 +374,8 @@ function sync(){[...filters.children].forEach(b=>{const on=b.dataset.conf===acti
 sync();
 const esc=s=>(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function hl(t,q){t=esc(t);if(!q)return t;try{return t.replace(new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>')}catch(e){return t}}
+// Wrap inner HTML in a subtle link that opens a Google search for `query` in a new tab.
+function glink(query,inner){return '<a class="gl" href="https://www.google.com/search?q='+encodeURIComponent(query)+'" target="_blank" rel="noopener noreferrer" title="Search Google for '+esc(query)+'">'+inner+'<span class="ext">↗</span></a>';}
 document.getElementById('q').oninput=e=>{query=e.target.value.trim().toLowerCase();render()};
 document.getElementById('toggleAll').onclick=function(){allExpanded=!allExpanded;this.textContent=allExpanded?"Collapse all":"Expand all";
   document.querySelectorAll('.team').forEach(t=>t.classList.toggle('collapsed',!allExpanded));};
@@ -419,7 +427,7 @@ function card(t,players,col,q,forceOpen){
     return '<div class="prow">'+
       '<span class="num">'+p.num+'</span>'+
       '<span class="pos '+p.pos+'" title="'+POSFULL[p.pos]+'">'+p.pos+'</span>'+
-      '<div class="pmain"><div class="pname">'+hl(p.name,q)+tags+'</div>'+
+      '<div class="pmain"><div class="pname">'+glink(p.name+' '+t.name+' footballer',hl(p.name,q))+tags+'</div>'+
       '<div class="pclub">'+hl(p.club,q)+'<span class="lge">'+p.lge+'</span></div></div>'+
       '<div class="pstats">'+
         '<div class="ps"><span class="v">'+p.age+'</span><span class="k">Age</span></div>'+
@@ -437,11 +445,11 @@ function card(t,players,col,q,forceOpen){
     factCell('Youngest',f.youngest,1)+factCell('Top rated',topRated?topRated.name+' · '+topRated.ovr:'—',1)+'</div>';
   el.innerHTML='<div class="spine" style="background:'+col+'"></div>'+
     '<div class="thead"><div class="trow"><span class="flag">'+t.flag+'</span>'+
-      '<div class="tn"><h3>'+esc(t.name)+'</h3><div class="qual">'+esc(t.qual)+' · '+esc(t.coach)+'</div></div>'+
+      '<div class="tn"><h3>'+glink(t.name+' national football team',esc(t.name))+'</h3><div class="qual">'+esc(t.qual)+' · '+esc(t.coach)+'</div></div>'+
       '<span class="conf" style="background:'+col+'">'+t.conf+'</span>'+
       '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>'+vs+'</div>'+
     facts+profileBlock(t)+'<div class="roster">'+rows+'</div>';
-  el.querySelector('.thead').addEventListener('click',()=>el.classList.toggle('collapsed'));
+  el.querySelector('.thead').addEventListener('click',e=>{if(e.target.closest('.gl'))return;el.classList.toggle('collapsed');});
   return el;
 }
 function factCell(k,v,em){return '<div class="fact"><div class="k">'+k+'</div><div class="v'+(em?' ':'')+'">'+(em?'<span class="em">'+esc(String(v))+'</span>':esc(String(v)))+'</div></div>';}
