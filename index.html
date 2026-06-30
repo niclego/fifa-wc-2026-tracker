@@ -85,6 +85,25 @@
   .fact .v{font-size:12.5px;font-weight:600;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .fact .v .em{color:var(--gold)}
 
+  /* squad strengths & weaknesses profile */
+  .profile{padding:13px 16px 14px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.014)}
+  .profile .ph{font-family:"JetBrains Mono",monospace;font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--faint);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+  .profile .ph svg{opacity:.85;flex-shrink:0}
+  .lines{display:flex;flex-direction:column;gap:8px}
+  .lrow{display:flex;align-items:center;gap:10px}
+  .lrow .ll{font-family:"JetBrains Mono",monospace;font-size:9px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);width:78px;flex-shrink:0}
+  .lbar{flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+  .lbar span{display:block;height:100%;border-radius:999px}
+  .lbar span.st{background:linear-gradient(90deg,#2f9c5d,#5FD494)}
+  .lbar span.mid{background:linear-gradient(90deg,#41648f,#7FB4EA)}
+  .lbar span.wk{background:linear-gradient(90deg,#a93b42,#F0888C)}
+  .lrow .lv{font-family:"JetBrains Mono",monospace;font-size:11.5px;font-weight:700;width:24px;text-align:right;flex-shrink:0;color:var(--ink)}
+  .lrow .lv.st{color:#5FD494}.lrow .lv.wk{color:#F0888C}
+  .lrow .lv.na{color:var(--faint);font-weight:500}
+  .psum{margin-top:12px;font-size:11.5px;line-height:1.5;color:var(--muted)}
+  .psum .s{color:#5FD494;font-weight:600}.psum .w{color:#F0888C;font-weight:600}
+
+  .team.collapsed .profile{display:none}
   .team.collapsed .roster,.team.collapsed .vs{display:none}
   .roster{padding:4px 0}
   .prow{display:flex;align-items:center;gap:10px;padding:7px 16px;border-bottom:1px solid rgba(255,255,255,.04)}
@@ -251,6 +270,7 @@
   <div class="wrap">
     <p class="note"><b>Source.</b> Every roster, club, position, birth date, height, cap and goal figure is taken verbatim from the official FIFA squad lists released 24 June 2026; ages are as of the tournament. Players are grouped by position (GK → DF → MF → FW) and sorted by shirt number within each position. The coloured tags flag each squad's <b>most-capped player</b>, <b>top scorer</b> and <b>youngest player</b>. Squad facts (average age, players based abroad, etc.) are computed from that same data.</p>
     <p class="note" style="margin-top:10px"><b>Player ratings.</b> The <b>OVR</b> chip on each player is the <b>EA Sports FC 26</b> overall rating (launch database, updated 19 Sep 2025), matched to the squad lists by name and date of birth. A gold <b>★ Key</b> badge marks the highest-rated player in each position line — the goalkeeper, defender, midfielder and attacker most worth watching — and a green bubble shows a young player's growth potential. Ratings exist for <b>701 of 832</b> players; some squads built around domestic leagues (e.g. South Africa, Egypt) are only partly covered, so players without an EA rating show a dashed “–” rather than a guessed number. Ratings are EA's and are shown for reference only.</p>
+    <p class="note" style="margin-top:10px"><b>Squad profile.</b> Each open squad shows a <b>strengths &amp; weaknesses</b> read across its four lines — goalkeeping, defense, midfield and attack. A line's rating is the average OVR of the players that would actually fill it (best goalkeeper, top four defenders, top four midfielders, top three attackers), then ranked against the other qualified teams. A line in the top quarter of the field is flagged as a <b>strength</b> (green); the bottom quarter is a <b>weakness</b> (red); the rest sit mid-table (blue). Hover any bar for its exact rating and field rank. Lines with no rated players show a dashed “–” and are left out of the summary.</p>
     <div class="pending"><b>Round of 32 — June 28 to July 3.</b> The 32-team bracket is complete: 12 group winners, 12 runners-up and the eight best third-placed teams. It's a fixed bracket with no redraws — every nation already knows its full path to the final. Opening ties include South Africa–Canada, Brazil–Japan, Netherlands–Morocco, Spain–Austria, Portugal–Croatia and Argentina–Cabo Verde.</div>
     <p style="margin-top:16px"><a class="top" href="#">↑ Back to top</a></p>
   </div>
@@ -345,11 +365,78 @@ function card(t,players,col,q,forceOpen){
       '<div class="tn"><h3>'+esc(t.name)+'</h3><div class="qual">'+esc(t.qual)+' · '+esc(t.coach)+'</div></div>'+
       '<span class="conf" style="background:'+col+'">'+t.conf+'</span>'+
       '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></div>'+vs+'</div>'+
-    facts+'<div class="roster">'+rows+'</div>';
+    facts+profileBlock(t)+'<div class="roster">'+rows+'</div>';
   el.querySelector('.thead').addEventListener('click',()=>el.classList.toggle('collapsed'));
   return el;
 }
 function factCell(k,v,em){return '<div class="fact"><div class="k">'+k+'</div><div class="v'+(em?' ':'')+'">'+(em?'<span class="em">'+esc(String(v))+'</span>':esc(String(v)))+'</div></div>';}
+
+/* ===== SQUAD STRENGTHS & WEAKNESSES =====
+   For each squad we rate its four position lines from the EA FC 26 overall
+   ratings (the top players that would actually form each line), then rank
+   every line against the other 31 qualified teams. A line in the top quarter
+   of the field is a strength; a line in the bottom quarter is a weakness. */
+const LINEK={GK:1,DF:4,MF:4,FW:3};               // players that define each line
+const POSLINE={GK:"Goalkeeping",DF:"Defense",MF:"Midfield",FW:"Attack"};
+const LINE_ORDER=["GK","DF","MF","FW"];
+function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+function buildAnalysis(){
+  // 1) line rating = average OVR of the best K rated players in that position
+  TEAMS.forEach(t=>{
+    t._lines={};
+    LINE_ORDER.forEach(pos=>{
+      const rated=t.players.filter(p=>p.pos===pos&&p.ovr!=null).map(p=>p.ovr).sort((a,b)=>b-a);
+      if(!rated.length){t._lines[pos]=null;return;}
+      const k=Math.min(LINEK[pos],rated.length);
+      t._lines[pos]=+(rated.slice(0,k).reduce((a,b)=>a+b,0)/k).toFixed(1);
+    });
+  });
+  // 2) rank each line across the field → percentile (1 = best)
+  LINE_ORDER.forEach(pos=>{
+    const vals=TEAMS.map(t=>t._lines[pos]).filter(v=>v!=null).sort((a,b)=>b-a);
+    const n=vals.length;
+    TEAMS.forEach(t=>{
+      const v=t._lines[pos];if(v==null){t._lines[pos+'_p']=null;return;}
+      t._lines[pos+'_p']=n>1?vals.filter(x=>x<v).length/(n-1):1;
+      t._lines[pos+'_r']=vals.indexOf(v)+1;
+      t._lines[pos+'_n']=n;
+    });
+  });
+}
+function lineTier(pct){return pct>=0.75?'st':pct<=0.25?'wk':'mid';}
+function joinNames(arr,cls){const ns=arr.map(p=>'<span class="'+cls+'">'+POSLINE[p].toLowerCase()+'</span>');
+  return ns.length<2?ns.join(''):ns.slice(0,-1).join(', ')+' and '+ns[ns.length-1];}
+function summaryLine(t){
+  const str=LINE_ORDER.filter(p=>t._lines[p]!=null&&t._lines[p+'_p']>=0.75).sort((a,b)=>t._lines[b+'_p']-t._lines[a+'_p']);
+  const wk =LINE_ORDER.filter(p=>t._lines[p]!=null&&t._lines[p+'_p']<=0.25).sort((a,b)=>t._lines[a+'_p']-t._lines[b+'_p']);
+  let txt;
+  if(str.length&&wk.length)
+    txt='Leans on its '+joinNames(str,'s')+', but '+joinNames(wk,'w')+' '+(wk.length>1?'are':'is')+' the area to exploit.';
+  else if(str.length)
+    txt='Well-rounded — strongest through '+joinNames(str,'s')+', with no glaring weak line.';
+  else if(wk.length)
+    txt='No standout line, and '+joinNames(wk,'w')+' '+(wk.length>1?'rank':'ranks')+' among the weakest in the field.';
+  else
+    txt='A balanced, mid-table squad on paper — no extreme highs or lows.';
+  return '<div class="psum">'+txt+'</div>';
+}
+function profileBlock(t){
+  const rows=LINE_ORDER.map(pos=>{
+    const v=t._lines[pos];
+    if(v==null)return '<div class="lrow"><span class="ll">'+POSLINE[pos]+'</span>'+
+      '<div class="lbar"></div><span class="lv na" title="No EA FC 26 ratings for this line">–</span></div>';
+    const tier=lineTier(t._lines[pos+'_p']);
+    const w=Math.max(6,Math.min(100,(v-62)/28*100));   // map 62–90 OVR → bar width
+    const tip=POSLINE[pos]+' line rating '+v+' · '+ord(t._lines[pos+'_r'])+' of '+t._lines[pos+'_n']+' qualified teams';
+    return '<div class="lrow" title="'+tip+'"><span class="ll">'+POSLINE[pos]+'</span>'+
+      '<div class="lbar"><span class="'+tier+'" style="width:'+w.toFixed(0)+'%"></span></div>'+
+      '<span class="lv '+tier+'">'+v+'</span></div>';
+  }).join('');
+  return '<div class="profile"><div class="ph">'+CHART+'Squad profile · line ratings vs the field</div>'+
+    '<div class="lines">'+rows+'</div>'+summaryLine(t)+'</div>';
+}
+const CHART='<svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M3 13h4v8H3zm7-9h4v17h-4zm7 5h4v12h-4z"/></svg>';
+buildAnalysis();
 render();
 
 /* ===== BRACKET ===== */
